@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>bitHuman Visual Agent</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <script src="../../../node_modules/socket.io-client/dist/socket.io.js"></script>
+    <script>
+        // Get absolute path to assets
+        const path = require('path');
+        const fs = require('fs');
+        const projectRoot = path.resolve(__dirname, '../../../../');
+        
+        // Track mute state
+        let isMuted = false;
+        let previousMuteState = false; // Store previous mute state when opening settings
+        
+        // Listen for settings open/close events
+        require('electron').ipcRenderer.on('settings-opening', () => {
+            console.log("Settings opening, storing mute state:", isMuted);
+            previousMuteState = isMuted;
+            if (!isMuted) {
+                // Only mute if not already muted
+                toggleMute(true); // Force mute
+            }
+        });
+        
+        require('electron').ipcRenderer.on('settings-closed', () => {
+            console.log("Settings closed, previous mute state:", previousMuteState);
+            
+            // Only restore previous state if:
+            // 1. Current state is muted (we forced mute when opening settings)
+            // 2. Previous state was unmuted (we need to unmute)
+            // 3. The user didn't manually toggle while settings were open
+            
+            if (isMuted && !previousMuteState) {
+                console.log("Restoring to unmuted state");
+                toggleMute(false); // Restore to unmuted
+            } else {
+                console.log("Keeping current mute state:", isMuted);
+            }
+        });
+    </script>
+    <style>
+        /* Mute overlay styles */
+        #mute-overlay {
+            display: none;
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 14px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 8px 12px;
+            border-radius: 20px;
+            z-index: 1000;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.3);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 0;
+            transform: translateY(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        #mute-overlay.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        #mute-overlay .mute-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+        }
+        
+        #mute-overlay #muted-icon svg {
+            color: #ff5252;
+            fill: #ff5252;
+        }
+        
+        #mute-overlay #unmuted-icon svg {
+            color: #4caf50;
+            fill: #4caf50;
+        }
+        
+        #mute-text {
+            font-weight: 500;
+            letter-spacing: 0.2px;
+        }
+        
+        /* Drag and Drop styles */
+        #video-container.highlight {
+            box-shadow: 0 0 0 3px rgba(75, 161, 255, 0.7);
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(75, 161, 255, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(75, 161, 255, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(75, 161, 255, 0);
+            }
+        }
+        
+        /* Temporary notification styles */
+        .temporary-notification {
+            position: fixed;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .temporary-notification.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Initializing model...</div>
+    </div>
+    <div id="video-container">
+        <img id="video-feed" src="" alt="Video Feed">
+    </div>
+    
+    <div id="help-overlay">
+        <h3>Keyboard Shortcuts</h3>
+        <div class="help-text">
+            <p>Keyboard Shortcuts:</p>
+            <p>a - Toggle agent/avatar mode</p>
+            <p>f - Toggle fullscreen</p>
+            <p>h - Show/hide this help</p>
+            <p>q - Quit application</p>
+            <p>Space - Toggle mute</p>
+            
+            <p style="margin-top: 15px;">Features:</p>
+            <p>Drag & drop MP3/WAV files to play audio</p>
+        </div>
+    </div>
+    
+    <!-- Mute overlay with icon -->
+    <div id="mute-overlay">
+        <div class="mute-icon" id="muted-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="18px" height="18px">
+                <path d="M0 0h24v24H0z" fill="none"/>
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+            </svg>
+        </div>
+        <div class="mute-icon" id="unmuted-icon" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="18px" height="18px">
+                <path d="M0 0h24v24H0z" fill="none"/>
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+            </svg>
+        </div>
+        <div id="mute-text">Muted</div>
+    </div>
+
+    <!-- Show loading overlay immediately -->
+    <script>
+        document.getElementById('loading-overlay').style.display = 'flex';
+    </script>
+
+    <script>
+        // Set default image based on settings
+        function loadUserSelectedModelImage() {
+            try {
+                // Use the built-in Node.js modules to get user home directory
+                const os = require('os');
+                const homedir = os.homedir();
+                
+                // Determine user data path based on platform
+                let userDataPath;
+                if (process.platform === 'darwin') { // macOS
+                    userDataPath = path.join(homedir, 'Library', 'Application Support', 'bitHumanVisualAgent');
+                } else if (process.platform === 'win32') { // Windows
+                    userDataPath = path.join(process.env.APPDATA || path.join(homedir, 'AppData', 'Roaming'), 'bitHumanVisualAgent');
+                } else { // Linux and others
+                    userDataPath = path.join(homedir, '.local', 'share', 'bitHumanVisualAgent');
+                }
+                
+                // Path to settings.json
+                const settingsPath = path.join(userDataPath, 'settings.json');
+                
+                // Check if settings.json exists and has a model property
+                if (fs.existsSync(settingsPath)) {
+                    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+                    if (settings && settings.model) {
+                        // Extract model name (remove .imx extension if present)
+                        const modelName = settings.model.endsWith('.imx') 
+                            ? settings.model.substring(0, settings.model.length - 4) 
+                            : settings.model;
+                        
+                        console.log("Found model in settings.json:", modelName);
+                        
+                        // Path to images directory
+                        const imagesDir = path.join(userDataPath, 'assets', 'images');
+                        
+                        // Build path to the model's image
+                        const imagePath = path.join(imagesDir, `${modelName}.jpg`);
+                        
+                        // Check if the image exists
+                        if (fs.existsSync(imagePath)) {
+                            console.log("Using image for model from settings.json:", imagePath);
+                            
+                            const videoFeed = document.getElementById('video-feed');
+                            if (videoFeed) {
+                                // Convert file path to file:// URL for browser compatibility
+                                const fileUrl = 'file://' + imagePath.replace(/\\/g, '/');
+                                videoFeed.src = fileUrl;
+                            }
+                        } else {
+                            console.error("Image for model not found:", imagePath);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading model image:", err);
+            }
+        }
+        
+        // Load the image when DOM is ready
+        document.addEventListener('DOMContentLoaded', loadUserSelectedModelImage);
+        
+        // Function to get the server API URL
+        function getApiBaseUrl() {
+            // Get the config from the same place main.js does
+            const config = require('../../main/config');
+            return `http://localhost:${config.SERVER_PORT}`;
+        }
+        
+        // Handle file drag and drop
+        function initDragAndDrop() {
+            const videoContainer = document.getElementById('video-container');
+            
+            // Prevent default drag behaviors
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                videoContainer.addEventListener(eventName, preventDefaults, false);
+                document.body.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            // Highlight drop area when item is dragged over it
+            ['dragenter', 'dragover'].forEach(eventName => {
+                videoContainer.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                videoContainer.addEventListener(eventName, unhighlight, false);
+            });
+            
+            // Handle dropped files
+            videoContainer.addEventListener('drop', handleDrop, false);
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            function highlight(e) {
+                videoContainer.classList.add('highlight');
+            }
+            
+            function unhighlight(e) {
+                videoContainer.classList.remove('highlight');
+            }
+            
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                
+                if (files.length > 0) {
+                    const file = files[0];
+                    
+                    // Check if file is audio
+                    if (file.type.startsWith('audio/') || 
+                        file.name.endsWith('.mp3') || 
+                        file.name.endsWith('.wav')) {
+                        
+                        // Get actual file path (Electron-specific)
+                        const filePath = file.path;
+                        
+                        if (filePath) {
+                            console.log('Audio file dropped:', filePath);
+                            playSoundFile(filePath);
+                        } else {
+                            console.error('Could not get file path from the dropped file');
+                        }
+                    } else {
+                        console.log('Not an audio file:', file.type || file.name);
+                        
+                        // Show notification about invalid file type
+                        const notification = document.createElement('div');
+                        notification.className = 'temporary-notification';
+                        notification.textContent = 'Please drop an audio file (MP3 or WAV)';
+                        document.body.appendChild(notification);
+                        
+                        setTimeout(() => {
+                            notification.classList.add('visible');
+                        }, 10);
+                        
+                        setTimeout(() => {
+                            notification.classList.remove('visible');
+                            setTimeout(() => {
+                                document.body.removeChild(notification);
+                            }, 500);
+                        }, 3000);
+                    }
+                }
+            }
+        }
+        
+        // Function to send audio file to API
+        function playSoundFile(filePath) {
+            const apiUrl = `${getApiBaseUrl()}/api/play-sound`;
+            
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ file_path: filePath })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Sound file being played:', data);
+                
+                // Show notification
+                const notification = document.createElement('div');
+                notification.className = 'temporary-notification';
+                notification.textContent = 'Playing audio file...';
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.classList.add('visible');
+                }, 10);
+                
+                setTimeout(() => {
+                    notification.classList.remove('visible');
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 500);
+                }, 2000);
+            })
+            .catch(error => {
+                console.error('Error playing sound file:', error);
+                
+                // Show error notification
+                const notification = document.createElement('div');
+                notification.className = 'temporary-notification';
+                notification.textContent = 'Error playing audio file';
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.classList.add('visible');
+                }, 10);
+                
+                setTimeout(() => {
+                    notification.classList.remove('visible');
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 500);
+                }, 3000);
+            });
+        }
+        
+        // Function to toggle mute
+        function toggleMute(forceMuteState) {
+            console.log(`toggleMute called with forceMuteState:`, forceMuteState);
+            
+            // If forceMuteState is provided and it matches current state, do nothing
+            if (forceMuteState !== undefined && forceMuteState === isMuted) {
+                console.log(`Mute state already ${isMuted ? 'muted' : 'unmuted'}, no change needed`);
+                return;
+            }
+            
+            // Determine which endpoint to use based on whether forceMuteState is specified
+            const useSetState = forceMuteState !== undefined;
+            const endpoint = useSetState 
+                ? `${getApiBaseUrl()}/api/set-mute-state`
+                : `${getApiBaseUrl()}/api/direct-toggle-mute`;
+                
+            const method = useSetState ? 'PUT' : 'POST';
+            const headers = {
+                'Accept': 'application/json'
+            };
+            
+            // Only add Content-Type for requests with a body
+            if (useSetState) {
+                headers['Content-Type'] = 'application/json';
+            }
+            
+            const body = useSetState ? JSON.stringify({ muted: forceMuteState }) : undefined;
+            
+            console.log(`Calling ${endpoint} with method ${method}, forcing state: ${forceMuteState !== undefined ? forceMuteState : 'not forcing'}`);
+            
+            fetch(endpoint, {
+                method: method,
+                headers: headers,
+                body: body
+            })
+            .then(response => {
+                console.log(`Response status:`, response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`Mute API response:`, data);
+                isMuted = data.muted;
+                
+                // Get UI elements
+                const muteOverlay = document.getElementById('mute-overlay');
+                const mutedIcon = document.getElementById('muted-icon');
+                const unmutedIcon = document.getElementById('unmuted-icon');
+                const muteText = document.getElementById('mute-text');
+                
+                // Update UI based on mute state
+                if (isMuted) {
+                    // Show muted indicator
+                    muteOverlay.style.display = 'flex';
+                    mutedIcon.style.display = 'flex';
+                    unmutedIcon.style.display = 'none';
+                    muteText.textContent = 'Muted';
+                    
+                    // Make it visible with animation
+                    setTimeout(() => {
+                        muteOverlay.classList.add('visible');
+                    }, 10);
+                } else {
+                    // For unmuted state, show temporarily and then hide
+                    muteOverlay.style.display = 'flex';
+                    mutedIcon.style.display = 'none';
+                    unmutedIcon.style.display = 'flex';
+                    muteText.textContent = 'Unmuted';
+                    
+                    // Make it visible with animation
+                    setTimeout(() => {
+                        muteOverlay.classList.add('visible');
+                    }, 10);
+                    
+                    // Hide after 2 seconds
+                    setTimeout(() => {
+                        muteOverlay.classList.remove('visible');
+                        setTimeout(() => {
+                            muteOverlay.style.display = 'none';
+                        }, 300);
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling mute:', error);
+            });
+        }
+        
+        // Make toggleMute globally accessible
+        window.toggleMute = toggleMute;
+        
+        // Function to toggle between agent and avatar modes
+        function toggleMode() {
+            const apiUrl = `${getApiBaseUrl()}/api/toggle-mode`;
+            
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const currentMode = data.mode;
+                console.log(`Mode changed to: ${currentMode}`);
+                
+                // Show notification of mode change
+                const notification = document.createElement('div');
+                notification.className = 'temporary-notification';
+                notification.textContent = `Mode: ${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)}`;
+                document.body.appendChild(notification);
+                
+                // Fade in
+                setTimeout(() => {
+                    notification.classList.add('visible');
+                }, 10);
+                
+                // Remove after delay
+                setTimeout(() => {
+                    notification.classList.remove('visible');
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 500); // Wait for fade out animation
+                }, 2000);
+            })
+            .catch(error => {
+                console.error('Error toggling mode:', error);
+            });
+        }
+        
+        // Make toggleMode globally accessible
+        window.toggleMode = toggleMode;
+        
+        // Initialize drag and drop functionality
+        initDragAndDrop();
+    </script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

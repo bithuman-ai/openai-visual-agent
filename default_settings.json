@@ -1,0 +1,78 @@
+{
+  "app": {
+    "name": "bitHumanVisualAgent",
+    "settingsFile": "settings.json"
+  },
+  "apiKeys": {
+    "bithuman": "",
+    "openai": ""
+  },
+  "server": {
+    "port": 5001,
+    "minPort": 5001,
+    "maxPort": 5010,
+    "flaskSecretKey": "bithuman",
+    "mode": "production",
+    "debug": false,
+    "asyncMode": "threading"
+  },
+  "repo": {
+    "baseUrl": "https://repo.one.bithuman.io/resources/app",
+    "modelBaseUrl": "https://repo.one.bithuman.io/resources/app/models",
+    "imageBaseUrl": "https://repo.one.bithuman.io/resources/app/images",
+    "voiceBaseUrl": "https://repo.one.bithuman.io/resources/app/voices",
+    "promptBaseUrl": "https://repo.one.bithuman.io/resources/app/prompts",
+    "connectTimeout": 10,
+    "downloadTimeout": 300,
+    "chunkSize": 262144,
+    "useMultipartDownload": true,
+    "maxConnectionsPerFile": 3,
+    "largeFileThreshold": 10485760
+  },
+  "assets": {
+    "assetDir": "assets",
+    "modelsDir": "models",
+    "imagesDir": "images",
+    "voicesDir": "voices",
+    "promptsDir": "prompts"
+  },
+  "defaults": {
+    "models": [
+      "albert_einstein.imx"
+    ],
+    "images": [
+      "albert_einstein.jpg"
+    ],
+    "voices": [
+      "alloy.wav",
+      "ballad.wav",
+      "echo.wav",
+      "sage.wav",
+      "verse.wav",
+      "ash.wav",
+      "coral.wav",
+      "shimmer.wav"
+    ],
+    "prompts": [
+      "prompts.json"
+    ],
+    "voice": "ash"
+  },
+  "logs": {
+    "logDir": "logs",
+    "logLevel": "INFO",
+    "maxLogSizeMB": 10,
+    "backupCount": 5,
+    "logToConsole": true,
+    "logToFile": true
+  },
+  "ui": {
+    "windowTitle": "bitHuman Visual Agent",
+    "windowSize": [800, 600],
+    "windowStyle": "default",
+    "fpsLimit": 30,
+    "autoOpenBrowser": false,
+    "showDebug": false,
+    "darkMode": false
+  }
+} 

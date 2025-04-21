@@ -1,0 +1,31 @@
+# bitHuman Visual Agent Application Requirements
+
+# Core dependencies
+bithuman>=0.5.3
+livekit-agents[openai,silero,deepgram,cartesia,turn-detector]~=1.0.0
+
+# Web Server
+flask>=2.0.0
+flask-socketio>=5.0.0
+flask_cors
+python-engineio>=4.0.0
+python-socketio>=5.0.0
+
+# Data processing
+numpy>=1.19.0
+pillow>=8.0.0
+opencv-python  # For video frame processing (cv2)
+
+# Audio processing
+sounddevice~=0.5
+soundfile  # For reading/writing audio files
+
+# Networking & I/O
+aiohttp>=3.8.0  # For async HTTP requests
+aiofiles  # For async file operations
+
+# Utilities
+python-dotenv~=1.1
+requests>=2.25.0
+tqdm>=4.65.0  # For progress bars during downloads
+loguru  # For enhanced logging 

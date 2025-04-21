@@ -1,0 +1,26 @@
+{
+  "name": "electron_ui",
+  "version": "1.0.0",
+  "description": "bitHuman Desktop Agent",
+  "main": "main.js",
+  "scripts": {
+    "start": "FORCE_COLOR=3 electron . 2>&1 | grep -v 'NSOpenPanel'",
+    "start:debug": "electron .",
+    "start:no-color": "NO_COLOR=1 electron . 2>&1 | grep -v 'NSOpenPanel'",
+    "start:force-colors": "FORCE_COLOR=3 electron . 2>&1 | grep -v 'NSOpenPanel'",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "electron-is-dev": "^3.0.1",
+    "node-fetch": "^2.6.7",
+    "socket.io-client": "^4.7.4"
+  },
+  "devDependencies": {
+    "electron": "^25.9.8",
+    "electron-builder": "^24.9.1"
+  },
+  "config": {
+    "electron_mirror": "https://npmmirror.com/mirrors/electron/"
+  }
+}

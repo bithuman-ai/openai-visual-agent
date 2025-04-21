@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Settings</title>
+    <link rel="stylesheet" href="../css/settings.css">
+    <script>
+        // Get absolute path to assets
+        const path = require('path');
+        const fs = require('fs');
+        const { ipcRenderer } = require('electron');
+        
+        // Default paths (will be overridden by IPC)
+        let imagesPath, promptsPath, voicesPath, modelsPath;
+        
+        // Convert a file path to a file:// URL
+        function pathToFileUrl(filePath) {
+            return 'file://' + filePath.replace(/\\/g, '/');
+        }
+        
+        // Check if a file exists
+        function fileExists(filePath) {
+            try {
+                return fs.existsSync(filePath);
+            } catch (err) {
+                console.error(`Error checking if file exists: ${filePath}`, err);
+                return false;
+            }
+        }
+        
+        // Get server port from settings.json
+        function getServerPort() {
+            try {
+                // Get user data directory
+                const getUserDataDirectory = () => {
+                    const appName = 'bitHumanVisualAgent';
+                    const homedir = require('os').homedir();
+                    
+                    if (process.platform === 'darwin') { // macOS
+                        return path.join(homedir, 'Library', 'Application Support', appName);
+                    } else if (process.platform === 'win32') { // Windows
+                        return path.join(process.env.APPDATA || path.join(homedir, 'AppData', 'Roaming'), appName);
+                    } else { // Linux and others
+                        return path.join(homedir, '.local', 'share', appName);
+                    }
+                };
+                
+                // Read port from settings.json
+                const settingsPath = path.join(getUserDataDirectory(), 'settings.json');
+                if (fs.existsSync(settingsPath)) {
+                    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+                    if (settings && settings.server && settings.server.port) {
+                        const port = settings.server.port;
+                        console.log('Using server port from settings.json:', port);
+                        window.serverPort = port.toString();
+                        return;
+                    }
+                }
+                
+                // Fallback: check URL parameters if settings.json doesn't have port
+                const urlParams = new URLSearchParams(window.location.search);
+                const port = urlParams.get('port');
+                if (port) {
+                    console.log('Using server port from URL parameter:', port);
+                    window.serverPort = port;
+                    return;
+                }
+                
+                // Default to port 5001 if no other source is available
+                console.log('No port found, using default port: 5001');
+                window.serverPort = '5001';
+            } catch (error) {
+                console.error('Error getting server port:', error);
+                window.serverPort = '5001';
+            }
+        }
+        
+        // Initialize port on load
+        getServerPort();
+    </script>
+</head>
+<body>
+    <div class="theme-toggle-container">
+        <label class="theme-toggle" for="theme-switch">
+            <input type="checkbox" id="theme-switch">
+            <span class="theme-toggle-slider">
+                <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M12,18c-3.3,0-6-2.7-6-6s2.7-6,6-6s6,2.7,6,6S15.3,18,12,18zM12,8c-2.2,0-4,1.8-4,4c0,2.2,1.8,4,4,4c2.2,0,4-1.8,4-4C16,9.8,14.2,8,12,8z M12,4c-0.6,0-1-0.4-1-1V1c0-0.6,0.4-1,1-1s1,0.4,1,1v2C13,3.6,12.6,4,12,4z M12,24c-0.6,0-1-0.4-1-1v-2c0-0.6,0.4-1,1-1s1,0.4,1,1v2C13,23.6,12.6,24,12,24z M5.6,6.6c-0.4-0.4-0.4-1,0-1.4L7,3.8c0.4-0.4,1-0.4,1.4,0s0.4,1,0,1.4L7,6.6C6.8,6.8,6.6,6.9,6.3,6.9S5.8,6.8,5.6,6.6z M15.6,20.2c-0.4-0.4-0.4-1,0-1.4l1.4-1.4c0.4-0.4,1-0.4,1.4,0s0.4,1,0,1.4l-1.4,1.4C16.8,20.4,16.6,20.5,16.3,20.5S15.8,20.4,15.6,20.2z M4,13H2c-0.6,0-1-0.4-1-1s0.4-1,1-1h2c0.6,0,1,0.4,1,1S4.6,13,4,13z M22,13h-2c-0.6,0-1-0.4-1-1s0.4-1,1-1h2c0.6,0,1,0.4,1,1S22.6,13,22,13z M7,20.2l-1.4-1.4c-0.4-0.4-0.4-1,0-1.4s1-0.4,1.4,0L8.4,19c0.4,0.4,0.4,1,0,1.4C8.2,20.6,8,20.7,7.7,20.7S7.2,20.6,7,20.2z M17,6.6l-1.4-1.4c-0.4-0.4-0.4-1,0-1.4s1-0.4,1.4,0L18.4,5c0.4,0.4,0.4,1,0,1.4C18.2,6.6,18,6.7,17.7,6.7S17.2,6.6,17,6.6z"/>
+                </svg>
+                <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M12.1,22c-0.3,0-0.6,0-0.9,0c-5.5-0.5-9.5-5.4-9-10.9c0.4-4.8,4.2-8.6,9-9c0.4,0,0.8,0.2,1,0.5c0.2,0.3,0.2,0.8-0.1,1.1c-2,2.7-1.4,6.4,1.3,8.4c2.1,1.6,5,1.6,7.1,0c0.3-0.2,0.7-0.3,1.1-0.1c0.3,0.2,0.5,0.6,0.5,1c-0.2,2.7-1.5,5.1-3.6,6.8C16.6,21.2,14.4,22,12.1,22zM9.3,4.4c-2.9,1-5,3.6-5.2,6.8c-0.4,4.4,2.8,8.3,7.2,8.7c2.1,0.2,4.2-0.4,5.8-1.8c1.1-0.9,1.9-2.1,2.4-3.4c-2.5,0.9-5.3,0.5-7.5-1.1C9.2,11.4,8.1,7.7,9.3,4.4z"/>
+                </svg>
+            </span>
+        </label>
+    </div>
+    
+    <!-- Add a header bar with title -->
+    <div class="settings-header">
+        <h1 class="settings-title">Settings</h1>
+    </div>
+    
+    <div class="container">
+        <div class="tabs-container">
+            <div class="tabs">
+                <button class="tab active" data-tab="models">Models</button>
+                <button class="tab" data-tab="prompt">Prompt</button>
+                <button class="tab" data-tab="voice">Voice</button>
+                <button class="tab" data-tab="settings">API Keys</button>
+                <button class="tab" data-tab="help">Help</button>
+            </div>
+            <button id="saveCloseButton" class="save-close-button">✨ Save Changes & Apply</button>
+        </div>
+
+        <div id="models" class="tab-content active">
+            <div class="section">
+                <h2 class="section-title">Character Models</h2>
+                <p class="section-description">Select a character model for your agent or import a new one.</p>
+                
+                <div class="status-bar" id="modelStatusBar">
+                    <div class="status-bar-label">Current selected agent:</div>
+                    <div class="status-bar-value" id="currentModelName">None selected</div>
+                </div>
+                <div id="modelsGrid" class="models-grid">
+                    <!-- Models will be dynamically loaded from database -->
+                    <div class="add-model-button" id="addModelButton">
+                        <div class="button-text">Import New Agent Model</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="prompt" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">Persona Customization</h2>
+                <p class="section-description">Customize your agent's persona and behavior with detailed prompt instructions.</p>
+                
+                <div class="prompt-container">
+                    <div class="prompt-editor">
+                        <div class="prompt-editor-header">
+                            <span class="prompt-editor-title">✏️ Your Custom Instructions</span>
+                            <div class="prompt-editor-actions">
+                                <!-- Clear button removed as requested -->
+                            </div>
+                        </div>
+                        <textarea id="systemPrompt" class="prompt-textarea" placeholder="Enter your system prompt..."></textarea>
+                    </div>
+                    
+                    <div class="prompt-examples-section">
+                        <div class="prompt-description">
+                            <div class="prompt-description-icon">💡</div>
+                            <div class="prompt-description-text">
+                                <span class="prompt-description-title">Example Prompts</span>
+                                <p>Click on any role below to automatically fill the prompt with a detailed template:</p>
+                            </div>
+                        </div>
+                        
+                        <div class="prompt-examples-grid" id="systemPromptsContainer">
+                            <!-- System prompts will be loaded dynamically from prompts.json -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="voice" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">Voice Selection</h2>
+                <div class="status-bar" id="voiceStatusBar">
+                    <div class="status-bar-label">Current selected voice:</div>
+                    <div class="status-bar-value" id="currentVoiceName">None selected</div>
+                </div>
+                <div class="voice-grid">
+                    <!-- Voice grid will be populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <div id="settings" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">API Keys</h2>
+                <p class="section-description">Enter your API keys to use with bitHuman Visual Agent.</p>
+                
+                <div class="form-group">
+                    <div class="api-key-group">
+                        <label for="bithumanKey">
+                            <span class="key-label">bitHuman API Key</span>
+                            <span class="key-required">Required</span>
+                        </label>
+                        <div class="api-key-input-container">
+                            <input type="password" id="bithumanKey" class="api-key-input" placeholder="Enter your bitHuman API key">
+                            <button type="button" class="reveal-button" data-target="bithumanKey" title="Show/Hide API Key">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="reveal-icon">
+                                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="key-help-text">Required for character generation and API access.</p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="api-key-group">
+                        <label for="openaiKey">
+                            <span class="key-label">OpenAI API Key</span>
+                            <span class="key-optional">Optional</span>
+                        </label>
+                        <div class="api-key-input-container">
+                            <input type="password" id="openaiKey" class="api-key-input" placeholder="Enter your OpenAI API key">
+                            <button type="button" class="reveal-button" data-target="openaiKey" title="Show/Hide API Key">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="reveal-icon">
+                                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="key-help-text">Used for agent mode with voice chat.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="help" class="tab-content">
+            <div class="section">
+                <h2 class="section-title">Help & Resources</h2>
+                <p class="section-description">Quick reference guide for using bitHuman Visual Agent and helpful resources.</p>
+                
+                <div class="help-content">
+                    <div class="shortcuts-card">
+                        <h3 class="card-title">✨ Keyboard Shortcuts</h3>
+                        <div class="shortcuts-list">
+                            <div class="shortcut-item">
+                                <div class="key-badge">m</div>
+                                <div class="shortcut-description">
+                                    <span class="shortcut-emoji">👤</span>
+                                    <span>Character menu</span>
+                                </div>
+                            </div>
+                            <div class="shortcut-item">
+                                <div class="key-badge">p</div>
+                                <div class="shortcut-description">
+                                    <span class="shortcut-emoji">⚙️</span>
+                                    <span>Settings</span>
+                                </div>
+                            </div>
+                            <div class="shortcut-item">
+                                <div class="key-badge">a</div>
+                                <div class="shortcut-description">
+                                    <span class="shortcut-emoji">🔄</span>
+                                    <span>Toggle avatar mode</span>
+                                </div>
+                            </div>
+                            <div class="shortcut-item">
+                                <div class="key-badge">f</div>
+                                <div class="shortcut-description">
+                                    <span class="shortcut-emoji">🖥️</span>
+                                    <span>Fullscreen</span>
+                                </div>
+                            </div>
+                            <div class="shortcut-item">
+                                <div class="key-badge">space</div>
+                                <div class="shortcut-description">
+                                    <span class="shortcut-emoji">🔊</span>
+                                    <span>Mute/Unmute</span>
+                                </div>
+                            </div>
+                            <div class="shortcut-item">
+                                <div class="key-badge">s</div>
+                                <div class="shortcut-description">
+                                    <span class="shortcut-emoji">👇</span>
+                                    <span>Minimize</span>
+                                </div>
+                            </div>
+                            <div class="shortcut-item">
+                                <div class="key-badge">h</div>
+                                <div class="shortcut-description">
+                                    <span class="shortcut-emoji">💡</span>
+                                    <span>Toggle help</span>
+                                </div>
+                            </div>
+                            <div class="shortcut-item">
+                                <div class="key-badge">q</div>
+                                <div class="shortcut-description">
+                                    <span class="shortcut-emoji">🚪</span>
+                                    <span>Quit app</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="section-separator"></div>
+                    
+                    <div class="info-card">
+                        <h3 class="card-title">Creating Visual Models</h3>
+                        <p class="info-text">Create amazing visual models for your intelligent agents using the bitHuman platform. Visit our website to get started with custom character creation!</p>
+                        <a href="#" class="bithuman-link" id="openBithumanLink">
+                            <div class="website-card">
+                                <div class="logo-container">
+                                    <img src="../assets/bitHuman-logo-circle.png" alt="bitHuman Logo" class="bithuman-logo">
+                                </div>
+                                <span class="website-url">www.bithuman.io</span>
+                                <svg class="external-link-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                    <path d="M18 19H6c-.55 0-1-.45-1-1V6c0-.55.45-1 1-1h5c.55 0 1-.45 1-1s-.45-1-1-1H5c-1.11 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-6c0-.55-.45-1-1-1s-1 .45-1 1v5c0 .55-.45 1-1 1zM14 4c0 .55.45 1 1 1h2.59l-9.13 9.13c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0L19 6.41V9c0 .55.45 1 1 1s1-.45 1-1V4c0-.55-.45-1-1-1h-5c-.55 0-1 .45-1 1z"/>
+                                </svg>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load JSON files from assets
+        function loadJsonFile(filePath) {
+            try {
+                if (fileExists(filePath)) {
+                    const data = fs.readFileSync(filePath, 'utf8');
+                    return JSON.parse(data);
+                } else {
+                    console.error(`JSON file not found: ${filePath}`);
+                    return null;
+                }
+            } catch (err) {
+                console.error(`Error loading JSON file: ${filePath}`, err);
+                return null;
+            }
+        }
+        
+        // Function to load content once we have paths
+        function loadContent() {
+            // Try up to 3 different approaches to load prompts.json
+            console.log('loadContent called, promptsPath:', promptsPath);
+            
+            // Approach 1: Use promptsPath from IPC if available
+            let promptsData = null;
+            if (typeof promptsPath !== 'undefined' && promptsPath) {
+                console.log('Trying to load prompts from IPC promptsPath');
+                const promptsJsonPath = path.join(promptsPath, 'prompts.json');
+                promptsData = loadJsonFile(promptsJsonPath);
+            }
+            
+            // Approach 2: Try macOS standard path if needed
+            if (!promptsData) {
+                console.log('Trying to load prompts from macOS standard path');
+                const homedir = require('os').homedir();
+                const macPath = path.join(homedir, 'Library', 'Application Support', 'bitHumanVisualAgent', 'assets', 'prompts', 'prompts.json');
+                promptsData = loadJsonFile(macPath);
+            }
+            
+            // Approach 3: Try project-relative path as last resort
+            if (!promptsData) {
+                console.log('Trying to load prompts from project-relative path');
+                const projectRoot = path.resolve(__dirname, '../../../../../');
+                const projectPath = path.join(projectRoot, 'assets/prompts/prompts.json');
+                promptsData = loadJsonFile(projectPath);
+            }
+            
+            // Process the prompts data if we found it
+            if (promptsData && promptsData.systemPrompts) {
+                console.log('Successfully loaded prompts data:', promptsData);
+                
+                const container = document.getElementById('systemPromptsContainer');
+                if (container) {
+                    // Clear any previous content or error messages
+                    container.innerHTML = '';
+                    
+                    promptsData.systemPrompts.forEach(prompt => {
+                        const promptEl = document.createElement('div');
+                        promptEl.className = 'prompt-example';
+                        promptEl.dataset.content = prompt.content;
+                        promptEl.innerHTML = `<div class="prompt-title">${prompt.title}</div>`;
+                        container.appendChild(promptEl);
+                    });
+                    
+                    // Add event listeners to prompt examples
+                    document.querySelectorAll('.prompt-example').forEach(el => {
+                        el.addEventListener('click', () => {
+                            document.getElementById('systemPrompt').value = el.dataset.content;
+                        });
+                    });
+                    
+                    console.log('Prompts loaded and populated in UI');
+                }
+            } else {
+                console.error('Failed to load prompts data from any path');
+                // Show error if prompts container exists
+                const container = document.getElementById('systemPromptsContainer');
+                if (container) {
+                    container.innerHTML = `<div class="error-message">Error loading system prompts: No valid prompts.json found</div>`;
+                }
+            }
+        }
+    </script>
+    <script src="../js/settings.js"></script>
+    
+    <!-- Modal dialog for model import preview -->
+    <div id="modelImportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Import Model Preview</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="preview-image-container">
+                    <img id="modelPreviewImage" src="" alt="Model Preview">
+                </div>
+                <div class="preview-info">
+                    <h3>Model: <span id="modelPreviewName"></span></h3>
+                    <p>The system has generated a cover photo for this model. Would you like to:</p>
+                    <div class="preview-actions">
+                        <button id="moveModelButton" class="primary-button">Move to library and delete original</button>
+                        <button id="copyModelButton" class="secondary-button">Copy to library and keep original</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
