@@ -16,7 +16,7 @@ This application has been primarily tested on macOS. Linux and Windows users may
 
 1. Clone this repository to your local machine.
 
-2. Get API Secret from the [bitHuman website](https://bithuman.io).
+2. Get API Secret from the [bitHuman website](https://console.bithuman.io/develop).
 
 3. Configure your API keys in the `default_settings.json` file:
    ```json
