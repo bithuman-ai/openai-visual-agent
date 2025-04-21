@@ -4,7 +4,7 @@ This example demonstrates how to run a bitHuman Visual Agent desktop application
 
 ## Prerequisites
 
-1. BitHuman API Secret
+1. bitHuman API Secret
 2. OpenAI API Key
 3. Bash-compatible terminal
 
